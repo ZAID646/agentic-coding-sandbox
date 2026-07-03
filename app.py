@@ -96,11 +96,17 @@ PRESET_PROMPTS = [
     "Plot a sine wave and a cosine wave on the same chart using matplotlib, add a legend, and save it to /tmp/waves.png.",
 ]
 
-cols = st.columns(len(PRESET_PROMPTS))
-for i, (col, p) in enumerate(zip(cols, PRESET_PROMPTS)):
-    with col:
-        if st.button(f"Prompt {i + 1}", use_container_width=True, type="secondary"):
+for i, p in enumerate(PRESET_PROMPTS):
+    is_selected = st.session_state.get("prompt_input") == p
+    border = "1px solid #6366f1" if is_selected else "1px solid #e2e8f0"
+    st.markdown(
+        f"<div style='border:{border};border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;'>"
+        f"<span style='font-size:14px;flex:1;margin-right:12px;'>{p}</span>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+    use_col1, use_col2, _ = st.columns([1, 1, 4])
+    with use_col1:
+        if st.button("Use this prompt", key=f"use_prompt_{i}", use_container_width=True):
             st.session_state.prompt_input = p
             st.rerun()
-        if st.session_state.get("prompt_input") == p:
-            st.caption("selected")

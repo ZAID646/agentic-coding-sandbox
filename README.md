@@ -1,12 +1,4 @@
----
-title: Agentic Coding Sandbox
-emoji: ⚡
-colorFrom: indigo
-colorTo: purple
-sdk: docker
-pinned: false
-app_file: app.py
----
+[![Hugging Face Space](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Live%20Demo-blue)](https://zaid646-agentic-coding-sandbox.hf.space)
 
 # Agentic Coding Sandbox
 
