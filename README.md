@@ -60,7 +60,7 @@ Or using pip:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install -r requirements.txt
 ```
 
 ### 3. Configure environment
