@@ -1,41 +1,42 @@
 import io
 import os
-import base64
 import re
-import docker
+import base64
+import subprocess
+import sys
+import tempfile
+import textwrap
+from pathlib import Path
+
 from src.models import SandboxResult
-from src.config import SANDBOX_IMAGE, SANDBOX_TIMEOUT
+from src.config import SANDBOX_TIMEOUT
 
-
-DOCKER_SOCKET = "unix:///Users/zaid/.colima/default/docker.sock"
 
 _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
-_client: docker.DockerClient | None = None
 
 
-def _get_client() -> docker.DockerClient:
-    global _client
-    if _client is None:
-        _client = docker.DockerClient(base_url=DOCKER_SOCKET)
-    return _client
-
-
-def _wrap_script(script: str) -> str:
-    b64_script = base64.b64encode(script.encode("utf-8")).decode("ascii")
-    return (
-        "import base64, os\n"
-        f"exec(base64.b64decode('{b64_script}').decode())\n"
-        "for f in os.listdir('/tmp'):\n"
-        "    ext = os.path.splitext(f)[1].lower()\n"
-        f"    if ext in {list(_IMAGE_EXTENSIONS)}:\n"
-        "        with open(os.path.join('/tmp', f), 'rb') as imgf:\n"
-        "            b = base64.b64encode(imgf.read()).decode()\n"
-        "            print(f'__SANDBOX_FILE__{f}__{b}__SANDBOX_ENDFILE__')\n"
-    )
+def _docker_available() -> bool:
+    try:
+        import docker
+        client = docker.from_env()
+        client.ping()
+        client.close()
+        return True
+    except Exception:
+        return False
 
 
 def execute_code(script: str, requirements: list[str] | None = None) -> SandboxResult:
-    client = _get_client()
+    if _docker_available():
+        return _execute_docker(script, requirements)
+    return _execute_local(script, requirements)
+
+
+def _execute_docker(script: str, requirements: list[str] | None = None) -> SandboxResult:
+    import docker
+    from src.config import SANDBOX_IMAGE
+
+    client = docker.from_env()
     container = None
     try:
         if requirements:
@@ -81,10 +82,6 @@ def execute_code(script: str, requirements: list[str] | None = None) -> SandboxR
             success=result.get("StatusCode", 1) == 0,
             files=files,
         )
-    except docker.errors.APIError as e:
-        return SandboxResult(
-            stdout="", stderr=str(e), exit_code=-1, success=False
-        )
     except Exception as e:
         return SandboxResult(
             stdout="", stderr=str(e), exit_code=-1, success=False
@@ -95,6 +92,64 @@ def execute_code(script: str, requirements: list[str] | None = None) -> SandboxR
                 container.remove(force=True)
             except Exception:
                 pass
+
+
+def _execute_local(script: str, requirements: list[str] | None = None) -> SandboxResult:
+    tmp_dir = Path(tempfile.mkdtemp())
+    script_path = tmp_dir / "_script.py"
+    script_path.write_text(script, encoding="utf-8")
+
+    try:
+        if requirements:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--quiet"] + requirements,
+                capture_output=True,
+                timeout=60,
+            )
+
+        proc = subprocess.run(
+            [sys.executable, str(script_path)],
+            capture_output=True,
+            text=True,
+            timeout=SANDBOX_TIMEOUT,
+            cwd=str(tmp_dir),
+            env={**os.environ, "MPLCONFIGDIR": str(tmp_dir)},
+        )
+
+        clean_stdout, files = _parse_file_blocks(proc.stdout or "")
+
+        return SandboxResult(
+            stdout=clean_stdout or "",
+            stderr=proc.stderr or "",
+            exit_code=proc.returncode,
+            success=proc.returncode == 0,
+            files=files,
+        )
+    except subprocess.TimeoutExpired:
+        return SandboxResult(
+            stdout="", stderr="Execution timed out", exit_code=-1, success=False
+        )
+    except Exception as e:
+        return SandboxResult(
+            stdout="", stderr=str(e), exit_code=-1, success=False
+        )
+    finally:
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def _wrap_script(script: str) -> str:
+    b64_script = base64.b64encode(script.encode("utf-8")).decode("ascii")
+    return (
+        "import base64, os\n"
+        f"exec(base64.b64decode('{b64_script}').decode())\n"
+        "for f in os.listdir('/tmp'):\n"
+        "    ext = os.path.splitext(f)[1].lower()\n"
+        f"    if ext in {list(_IMAGE_EXTENSIONS)}:\n"
+        "        with open(os.path.join('/tmp', f), 'rb') as imgf:\n"
+        "            b = base64.b64encode(imgf.read()).decode()\n"
+        "            print(f'__SANDBOX_FILE__{f}__{b}__SANDBOX_ENDFILE__')\n"
+    )
 
 
 def _parse_file_blocks(text: str) -> tuple[str, dict[str, str]]:
