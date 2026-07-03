@@ -1,3 +1,13 @@
+---
+title: Agentic Coding Sandbox
+emoji: :zap:
+colorFrom: indigo
+colorTo: purple
+sdk: docker
+pinned: false
+app_file: app.py
+---
+
 # Agentic Coding Sandbox
 
 A self-correcting agentic system that generates, executes, and autonomously debugs Python code inside an isolated Docker sandbox. Built with LangGraph for workflow orchestration and powered by LLM agents (OpenCode Zen / DeepSeek V4 Flash Free).
