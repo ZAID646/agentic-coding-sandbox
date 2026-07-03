@@ -1,6 +1,6 @@
 ---
 title: Agentic Coding Sandbox
-emoji: :zap:
+emoji: ⚡
 colorFrom: indigo
 colorTo: purple
 sdk: docker
