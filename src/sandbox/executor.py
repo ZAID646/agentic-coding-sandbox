@@ -95,9 +95,9 @@ def _execute_docker(script: str, requirements: list[str] | None = None) -> Sandb
 
 
 def _execute_local(script: str, requirements: list[str] | None = None) -> SandboxResult:
+    import tempfile
+
     tmp_dir = Path(tempfile.mkdtemp())
-    script_path = tmp_dir / "_script.py"
-    script_path.write_text(script, encoding="utf-8")
 
     try:
         if requirements:
@@ -107,8 +107,10 @@ def _execute_local(script: str, requirements: list[str] | None = None) -> Sandbo
                 timeout=60,
             )
 
+        wrapped = _wrap_script(script)
+
         proc = subprocess.run(
-            [sys.executable, str(script_path)],
+            [sys.executable, "-c", wrapped],
             capture_output=True,
             text=True,
             timeout=SANDBOX_TIMEOUT,
